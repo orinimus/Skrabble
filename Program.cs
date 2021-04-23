@@ -1,4 +1,5 @@
-﻿using SkrabbleLt.Services;
+﻿using SkrabbleLt.Database;
+using SkrabbleLt.Services;
 using System;
 
 namespace Skrabble
@@ -7,7 +8,13 @@ namespace Skrabble
     {
         static void Main(string[] args)
         {
-            ScrabbleGame.PrintBoard();
+            using (var context = new ScrabbleContext())
+            {
+                IManageScrabbleDb manageScrableDb = new ManageScrabbleDb(context);
+                //IScrabbleGame scrabbleGame = new ScrabbleGame(manageScrableDb);
+                var game = new ScrabbleGame();
+                game.Scrabble(manageScrableDb);
+            }
         }
     }
 }
