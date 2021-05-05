@@ -10,7 +10,7 @@ namespace SkrabbleLt.Models
         public int StatisticId { get; set; }
         public int PlayerId { get; set; }
         public int GameId { get; set; }
-        public List<Tile> Tiles { get; set; }
+        public List<Tile> Tiles { get; set; } //the hand before move
         public string PlayedWord { get; set; }
         public BoardCell Position { get; set; } //position of the words first letter
         public char Direction { get; set; } //'H' horizontal 'V' vertical
