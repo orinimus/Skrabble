@@ -8,7 +8,7 @@ namespace SkrabbleLt.Models
         {
             BoardCellId = boardCellId;
             HPosition = hPosition;
-            VPosition = vPosition;
+            VPosition = vPosition;                        
             SpecialValue = specialValue;
         }
 
