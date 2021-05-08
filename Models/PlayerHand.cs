@@ -12,7 +12,13 @@ namespace SkrabbleLt.Models
             Hand = hand;
         }
 
+        public PlayerHand(int playerID, List<Tile> hand, int points) : this(playerID, hand)
+        {
+            Points = points;
+        }
+
         public int PlayerID { get; set; }
         public List<Tile> Hand { get; set; }
+        public int Points { get; set; }
     }
 }
