@@ -36,7 +36,7 @@ namespace SkrabbleLt.Services
                 playersHands.Add(new PlayerHand(player.PlayerId, generatedNewPlayerHand, 0));
                 bag.RemoveRange(0, 7);
                 playingPlayersId.Add(player.PlayerId);
-            } //initiation hands the starting points for players
+            } //initiation hands and the starting points for players
             List<BoardCell> gameBoard = new List<BoardCell>();            
             foreach (var cell in BoardInitialData.DataSeed)
             {
@@ -125,17 +125,16 @@ namespace SkrabbleLt.Services
             int horizontalPosition = 0;
             int verticalPosition = 0;
             char direction = ' ';
-            int usedLetters = 0;
-            //!!!!!!!!!! liko padirbeti ties siuo kalusimu!!!!!!!!!!!!!
             var points = playersHands.FirstOrDefault(p => p.PlayerID == playerId).Points;
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!!!! ir sugrazinimimas i statistikos duombaze!!!!!!
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!!!! komentarai!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            int turnPoints = 0;
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!! liko sugrazinimimas i statistikos duombaze!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!! dar gal lenteles vizualizacija nepakenktu su spec spausdint!!!!!!!!!
+            //!!!!!!!!!! komentarai!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             bool correctPositioning = false;
             bool possibleToCreate = false;
-            List<Tile> helpingLettersOnBoard = new List<Tile>();
+            List<Tile> playedTiles = new List<Tile>();
             while (correctPositioning is false || possibleToCreate is false)
             {
                 Console.WriteLine("Enter the word to play");
@@ -147,8 +146,8 @@ namespace SkrabbleLt.Services
                 direction = Direction();
                 var chArrayOfWordToPlay = wordToPlay.ToArray();
                 correctPositioning = CheckTheWord(chArrayOfWordToPlay, horizontalPosition, verticalPosition, direction, gameBoard, out skipedMoves); //checking if it's possible to corectly place the word on board
-                helpingLettersOnBoard = CheckIsItPossibleToCreateTheWord(wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction, gameBoard, playerHand, roundNumber, listOfUniqueTiles, out usedLetters); // cheking if there was any and returning it if the word was crossing other words on board
-                if (helpingLettersOnBoard.Count > 0 || (roundNumber == 1 && playerNumber == 0)) //if it's first word on board it's not need to cross other word
+                playedTiles = CheckIsItPossibleToCreateTheWord(wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction, gameBoard, playerHand, roundNumber, listOfUniqueTiles); // cheking if there was any and returning it if the word was crossing other words on board
+                if (playedTiles.Count > 0 || (roundNumber == 1 && playerNumber == 0)) //if it's first word on board it's not need to cross other word
                 {
                     possibleToCreate = true;
                 }
@@ -157,10 +156,19 @@ namespace SkrabbleLt.Services
                     possibleToCreate = false;
                 }                
             }
-            var tilesOfWordToPlay = TilesOfWordToPlay(wordToPlay.ToString(), listOfUniqueTiles);
 
-            var leftTilesFromHand = LeftOnHand(playerHand, helpingLettersOnBoard, tilesOfWordToPlay);
-            playerHand = AddToHand(bag, usedLetters, leftTilesFromHand);
+            turnPoints = PointsOfPlacedWord(playedTiles, gameBoard, listOfUniqueTiles, wordToPlay.ToArray(), points, horizontalPosition, verticalPosition, direction); //points after turn
+
+            Console.WriteLine($"Player {playerName} received {turnPoints} points");
+
+            points = points + turnPoints;
+
+            playersHands.FirstOrDefault(p => p.PlayerID == playerId).Points = points;
+
+            Console.WriteLine();            
+
+            playerHand = AddToHand(bag, playedTiles, playerHand);
+
             foreach (var player in playersHands)
             {
                 if(player.PlayerID == playerId)
@@ -171,20 +179,100 @@ namespace SkrabbleLt.Services
             return PlaceTheWordOnBoard(wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction, gameBoard, playerHand);
         }
 
-        public List<Tile> TilesOfWordToPlay(string wordToPlay, List<Tile> listOfUniqueTiles)
+        public int PointsOfPlacedWord(List<Tile> playedTiles, List<BoardCell> gameBoard, List<Tile> listOfUniqueTiles, char[] wordToPlay, int points, int horizontalPosition, int verticalPosition, char direction)
         {
-            List<Tile> tilesOfWordToPlay = new List<Tile>();
-            foreach (var playingLetter in wordToPlay)
+            int turnPoints = 0;
+            int multiplyer = 1;
+            int i = 0;
+            if (direction.ToString().ToUpper() == "R") //right
             {
-                tilesOfWordToPlay.Add(listOfUniqueTiles.FirstOrDefault(l => l.Letter == playingLetter));
+                foreach (var cell in gameBoard.Where(vp => vp.HPosition == verticalPosition).Skip(horizontalPosition - 1).Take(wordToPlay.Length))
+                {           
+                    if (cell.SpecialValue == "3xW")
+                    {
+                        multiplyer *= 3;
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "2xW")
+                    {
+                        multiplyer *= 2;
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "2xL")
+                    {
+                        turnPoints = turnPoints + (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 2;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "3xL")
+                    {
+                        turnPoints = turnPoints + (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 3;
+                        cell.SpecialValue = "   ";
+                    }
+                    else 
+                    {
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                    }
+                    i += 1;
+                }                
             }
-            return tilesOfWordToPlay;
+            else
+            {
+                foreach (var cell in gameBoard.Where(hp => hp.VPosition == horizontalPosition).Skip(verticalPosition - 1).Take(wordToPlay.Length))
+                {                    
+                    if (cell.SpecialValue == "3xW")
+                    {
+                        multiplyer *= 3;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "2xW")
+                    {
+                        multiplyer *= 2;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "2xL")
+                    {
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 2;
+                        cell.SpecialValue = "   ";
+                    }
+                    else if (cell.SpecialValue == "3xL")
+                    {
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 3;
+                        cell.SpecialValue = "   ";
+                    }
+                    else
+                    {
+                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                    }
+                    i += 1;
+                }
+            }
+
+            turnPoints *= multiplyer;
+            return turnPoints;
         }
 
-        public List<Tile> AddToHand(List<Tile> bag, int usedLetters, List<Tile> leftOnHand)
+        public List<Tile> TilesOfWordToPlay(char[] wordToPlay, List<Tile> listOfUniqueTiles)
         {
-            List<Tile> newHand = new List<Tile>();
-            if (bag.Count < usedLetters)
+            List<Tile> tilesOfWordToPlay = new List<Tile>();
+            foreach (var letterOfWord in wordToPlay)
+            {
+                tilesOfWordToPlay.Add(listOfUniqueTiles.First(l => l.Letter == letterOfWord));
+            }
+            return tilesOfWordToPlay;
+        } //word conversion to Tile list
+
+        public List<Tile> AddToHand(List<Tile> bag, List<Tile> playedTiles, List<Tile> playerHand) //Adding Tiles from bag after word was played
+        {
+            var newHand = playerHand;
+
+            foreach (var tile in playedTiles)
+            {
+                newHand.Remove(newHand.FirstOrDefault(x => x.Letter == tile.Letter));
+            }
+
+            if (bag.Count < playedTiles.Count) //if bag is almost empty
             {
                 foreach (var item in bag)
                 {
@@ -193,17 +281,14 @@ namespace SkrabbleLt.Services
             }
             else
             {
-                for (int i = 0; i < usedLetters; i++)
+                for (int i = 0; i < playedTiles.Count; i++) //adding new Tile from bag
                 {
                     newHand.Add(bag[i]);
                 }
             }
-            foreach (var item in leftOnHand) //pridedam kas liko po suzaidimo
-            {
-                newHand.Add(item);
-            }
             return newHand;
         }
+
         public List<Tile> LeftOnHand(List<Tile> playerHand, List<Tile> helpingLettersOnBoard, List<Tile> tilesOfWordToPlay)
         {
             var leftOnHand = playerHand;
@@ -218,49 +303,7 @@ namespace SkrabbleLt.Services
             return leftOnHand;
         }
 
-        public bool CheckTheWordCrossing(char[] wordToPlay, int h, int v, char d, List<BoardCell> gameBoard, List<Tile> playersHand)
-        {
-            if (d.ToString().ToUpper() == "R")
-            {
-                int warning = 0;
-                int i = 0;
-
-                int tempH = wordToPlay.Length + h;
-                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v)) 
-                {
-                    if (upperCell.LetterOnBoard != ' ' && i < tempH)
-                    {
-                        warning += 1;
-                    }
-                    else
-                    {
-                        warning = 0;
-                    }
-                    i += 1;
-                }
-                int j = 0;
-                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v + 1)) //tikrinam ar nesusiliecia daugiau nei 1 raide su zodziu apacioje
-                {
-                    if (upperCell.LetterOnBoard != ' ' && j < tempH)
-                    {
-                        warning += 1;
-                    }
-                    else
-                    {
-                        warning = 0;
-                    }
-                    j += 1;
-                }
-                if (warning > 1)
-                {
-                    Console.WriteLine("It's forbiden to place the word here");
-                    return false;
-                }
-            }
-            return false;
-        } //kolkas atstavit, einam tiesiai prie zodzio patalpinimo
-
-        public char Direction()
+        public char Direction() //OK for r/d entry 
         {
             Console.WriteLine("Enter Word direction Right or Down");
             char d;
@@ -284,13 +327,13 @@ namespace SkrabbleLt.Services
             }
         }
 
-        public List<Tile> GetPlayerHand(int playerId, List<PlayerHand> playerHands)
+        public List<Tile> GetPlayerHand(int playerId, List<PlayerHand> playerHands) //!!!!reik padidinimo!!!!  
         {
             var hand = playerHands.FirstOrDefault(p => p.PlayerID == playerId).Hand.ToList();
             return hand;
         }
 
-        public bool CheckTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard, out int skipedMoves)
+        public bool CheckTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard, out int skipedMoves) 
         {
             if (wordToPlay.Length != 0)
             {
@@ -305,13 +348,18 @@ namespace SkrabbleLt.Services
             } 
         } //reikia padidinimo
 
-        public List<Tile> CheckIsItPossibleToCreateTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard, List<Tile> playerHand, int roundNumber, List<Tile> listOfUniqueTiles, out int usedLetters)
+        public List<Tile> CheckIsItPossibleToCreateTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard, List<Tile> playerHand, int roundNumber, List<Tile> listOfUniqueTiles)
         {
             List<Tile> playedTiles = new List<Tile>();
             List<Tile> possibilityList = new List<Tile>();
             List<Tile> helpingLettersOnBoard = new List<Tile>();
-            int numberOfLettersHelpingHand = 0;
-            List<Tile> tilesOfWordToPlay = new List<Tile>();
+            var tilesOfWordToPlay = TilesOfWordToPlay(wordToPlay, listOfUniqueTiles);
+
+            foreach (var item in tilesOfWordToPlay)
+            {
+                Console.WriteLine($"raide is norimo suzaisti zodzio {item.Letter}"); //!!!!!!!!!!!!!!!!TIKRINIMAS!!!!!!!!!!!!!!!!
+            }
+
             if (direction.ToString().ToUpper() == "R") //right
             {
                 int i = 0;
@@ -320,7 +368,6 @@ namespace SkrabbleLt.Services
                 {
                     if ((cell.VPosition == horizontalPosition + i) && (i < wordToPlay.Length) && (cell.LetterOnBoard != '.')) //checking is there any letter from the begining of trying to play word to it's length
                     {
-                        numberOfLettersHelpingHand += 1;
                         helpingLettersOnBoard.Add(listOfUniqueTiles.FirstOrDefault(l => l.Letter == cell.LetterOnBoard)); //the crossing letter 
                         possibilityList.Add(listOfUniqueTiles.FirstOrDefault(l => l.Letter == cell.LetterOnBoard)); //filling the list of all letters from hand and wich are crossing
                         k += 1;                        
@@ -329,25 +376,23 @@ namespace SkrabbleLt.Services
                 }
                 foreach (var letter in LettersFromHand(playerHand)) // filling the list of all letters from hand and which are crossing
                 {
-                    possibilityList.Add(listOfUniqueTiles.FirstOrDefault(l => l.Letter == letter)); 
-                }                
-                if ((possibilityList.Count) == playerHand.Count && roundNumber > 1) // possiblilityList must be longer than hand, that meens that it's crossing other word and meeting the main rule of the Game
+                    possibilityList.Add(listOfUniqueTiles.FirstOrDefault(l => l.Letter == letter));                    
+                }
+                if (possibilityList.Count == playerHand.Count && roundNumber > 1) // possiblilityList must be longer than hand, that meens that it's crossing other word and meeting the main rule of the Game
                 {
                     Console.WriteLine("It's impossible to create such word, because it's not crossing other word on board");
-                    usedLetters = 0;
-                    return helpingLettersOnBoard;
-                }
-                tilesOfWordToPlay = TilesOfWordToPlay(wordToPlay.ToString(), listOfUniqueTiles);
+                    return playedTiles;
+                }               
+
                 foreach (var tile in tilesOfWordToPlay) //checking if the player with his letters on hand and with crossing letters can create the word
                 {
                     if (possibilityList.Contains(tile))
                     {
-                        possibilityList.Remove(tile);
+                        possibilityList.Remove(possibilityList.FirstOrDefault(i => i.Letter == tile.Letter));                    
                     }
                     else
                     {
                         Console.WriteLine("It's impossible to create such word with player's hand and board composition at this starting position");
-                        usedLetters = 0;
                         return playedTiles;  //returning empty list to confirm that it'was impossible to play the word
                     }
                 }
@@ -360,7 +405,6 @@ namespace SkrabbleLt.Services
                 {
                     if ((cell.HPosition == verticalPosition + i) && (i < wordToPlay.Length) && (cell.LetterOnBoard != '.')) //checking is there any letter from the begining of trying to play word to it's length
                     {
-                        numberOfLettersHelpingHand += 1;
                         helpingLettersOnBoard.Add(listOfUniqueTiles.First(l => l.Letter == cell.LetterOnBoard)); //the crossing letter 
                         possibilityList.Add(listOfUniqueTiles.First(x => x.Letter == cell.LetterOnBoard)); //filling the list of all letters from hand and wich are crossing
                         k += 1;
@@ -374,10 +418,8 @@ namespace SkrabbleLt.Services
                 if (possibilityList.Count == playerHand.Count && roundNumber > 1)  // possiblilityList must be longer than hand, that meens that it's crossing other word and meeting the main rule of the Game
                 {
                     Console.WriteLine("It's impossible to create such word, because it's not crossing other word on board");
-                    usedLetters = 0;
-                    return helpingLettersOnBoard;
+                    return playedTiles;
                 }
-                tilesOfWordToPlay = TilesOfWordToPlay(wordToPlay.ToString(), listOfUniqueTiles);
                 foreach (var tile in tilesOfWordToPlay) //checking if the player with his letters on hand and with crossing letters can create the word
                 {
                     if (possibilityList.Contains(tile))
@@ -387,17 +429,26 @@ namespace SkrabbleLt.Services
                     else
                     {
                         Console.WriteLine("It's impossible to create such word with player's hand and board composition at this starting position");
-                        usedLetters = 0;
                         return playedTiles; //returning empty list to confirm that it'was impossible to play the word
                     }
                 }
             }
-            usedLetters = wordToPlay.Length - numberOfLettersHelpingHand; //returning how many letters was used from hand
-
-            return helpingLettersOnBoard; //returning the list of 
+            playedTiles = PlayedTilesWitoutHelpingTiles(tilesOfWordToPlay, helpingLettersOnBoard);
+            return playedTiles; //returning the list of played Tiles from hand
+            
         } //OK patikrina ar susikerta ir grazina su kokiomis raidemis
 
-        public List<BoardCell> PlaceTheWordOnBoard(char[] wordToPlay, int h, int v, char d, List<BoardCell> gameBoard, List<Tile> playersHand)
+        public List<Tile> PlayedTilesWitoutHelpingTiles(List<Tile> tilesOfWordToPlay, List<Tile> helpingLettersOnBoard)
+        {
+            var playedTiles = tilesOfWordToPlay;
+            foreach (var tile in helpingLettersOnBoard)
+            {
+                playedTiles.Remove(playedTiles.FirstOrDefault(t => t.Letter == tile.Letter));
+            }
+            return playedTiles;
+        }
+
+        public List<BoardCell> PlaceTheWordOnBoard(char[] wordToPlay, int h, int v, char d, List<BoardCell> gameBoard, List<Tile> playersHand) //OK placing word in gameBoard 
         {
             if (d.ToString().ToUpper() == "R")
             {
@@ -424,9 +475,9 @@ namespace SkrabbleLt.Services
                 }
             }
             return gameBoard;
-        } //OK      
+        }     
 
-        public bool CheckTheBoardNeighbours(char[] wordToPlay, char d, int h, int v, List<BoardCell> gameBoard)
+        public bool CheckTheBoardNeighbours(char[] wordToPlay, char d, int h, int v, List<BoardCell> gameBoard) //OK checking neighbouring columns and rows alows to place the word  
         {            
             if (d.ToString().ToUpper() == "R")
             {
@@ -522,7 +573,7 @@ namespace SkrabbleLt.Services
                 }                
             }
             return true;
-        }//OK
+        }
 
         public List<char> LettersFromHand(List<Tile> hand)
         {
@@ -534,7 +585,7 @@ namespace SkrabbleLt.Services
             return lettersOnHand;
         }
 
-        public void PrintBoard(List<BoardCell> gameBoard)
+        public void PrintBoard(List<BoardCell> gameBoard)  
         {
             Console.WriteLine("     -------------------------------------------------------------");
             Console.WriteLine("     | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10| 11| 12| 13| 14|");
