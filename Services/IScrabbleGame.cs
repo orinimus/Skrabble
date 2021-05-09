@@ -8,7 +8,7 @@ namespace SkrabbleLt.Services
     {
         int HowManyPlayers();
         List<Player> PlayersNames(int howManyPlayers, IManageScrabbleDb manageScrableDb);
-        void PrintBoard(List<BoardCell> gameBoard);
+        void PrintBoard(List<BoardCell> gameBoard, List<Tile> listOfUniqueTiles);
         void Scrabble(IManageScrabbleDb manageScrableDb);
     }
 }

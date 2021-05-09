@@ -10,6 +10,8 @@ namespace SkrabbleLt.Services
 {
     public class ScrabbleGame : IScrabbleGame
     {
+        static readonly List<int> skipedMoves = new List<int>();
+
         private readonly IManageScrabbleDb _manageScrabbleDb;
 
         public ScrabbleGame(IManageScrabbleDb manageScrabbleDb)
@@ -23,8 +25,8 @@ namespace SkrabbleLt.Services
 
         public void Scrabble(IManageScrabbleDb manageScrableDb)
         {
-            int roundNumber = 1; //! 
-            int skipedMoves = 0; //!
+            int roundNumber = 1;
+            int gameId = manageScrableDb.GetLastGameId();
             var howManyPlayers = HowManyPlayers(); //getting the number of players
             var players = PlayersNames(howManyPlayers, manageScrableDb); //getting the names of players
             List<Tile> bag = ShuffleBag(); //getting full shuffled bag with tiles  
@@ -47,15 +49,17 @@ namespace SkrabbleLt.Services
             {
                 listOfUniqueTiles.Add(new Tile(tile.TileId, tile.Letter, tile.Value));
             } //initiation of all possible tiles and their values
-            while (skipedMoves < 3) //!!!!!! dar reikia sutvarkyti pabaiga!!!!!!!!!!the case when the game is over
+            while (skipedMoves.Count < 2) //the case when the game is over
             {
                 for (int i = 0; i < howManyPlayers; i++)
                 {
-                    var gameBoardAfterTurn = PlayersMove(roundNumber, playingPlayersId[i], manageScrableDb, playersHands, gameBoard, skipedMoves, roundNumber, bag, listOfUniqueTiles, i); //IDpriskyrimas
-                    PrintBoard(gameBoardAfterTurn);
+                    var gameBoardAfterTurn = PlayersMove(roundNumber, playingPlayersId[i], manageScrableDb, playersHands, gameBoard, roundNumber, bag, listOfUniqueTiles, i, gameId); //IDpriskyrimas
+                    PrintBoard(gameBoardAfterTurn, listOfUniqueTiles);
                 }
                 roundNumber += 1; 
             }
+
+            manageScrableDb.InsertGame(players, DateTime.Now);
         } 
         
         public List<Tile> GenerateNewHand(List<Tile> bag) //OK generating new hands in the begining of game 
@@ -116,7 +120,7 @@ namespace SkrabbleLt.Services
             return bag;
         } 
 
-        public List<BoardCell> PlayersMove(int roundNUmber, int playerId, IManageScrabbleDb manageScrableDb, List<PlayerHand> playersHands, List<BoardCell> gameBoard, int skipedMoves, int roundNumber, List<Tile> bag, List<Tile> listOfUniqueTiles, int playerNumber)
+        public List<BoardCell> PlayersMove(int roundNUmber, int playerId, IManageScrabbleDb manageScrableDb, List<PlayerHand> playersHands, List<BoardCell> gameBoard, int roundNumber, List<Tile> bag, List<Tile> listOfUniqueTiles, int playerNumber, int gameId)
         {
             var playerName = manageScrableDb.GetAllPlayers().FirstOrDefault(p => p.PlayerId == playerId).PlayerName;
             var playerHand = GetPlayerHand(playerId, playersHands);
@@ -126,12 +130,7 @@ namespace SkrabbleLt.Services
             int verticalPosition = 0;
             char direction = ' ';
             var points = playersHands.FirstOrDefault(p => p.PlayerID == playerId).Points;
-            int turnPoints = 0;
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!! liko sugrazinimimas i statistikos duombaze!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!! dar gal lenteles vizualizacija nepakenktu su spec spausdint!!!!!!!!!
-            //!!!!!!!!!! komentarai!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            int turnPoints = 0;            
             bool correctPositioning = false;
             bool possibleToCreate = false;
             List<Tile> playedTiles = new List<Tile>();
@@ -140,12 +139,12 @@ namespace SkrabbleLt.Services
                 Console.WriteLine("Enter the word to play");
                 wordToPlay = Console.ReadLine().ToUpper();
                 Console.WriteLine("Enter Horizontal position");
-                int.TryParse(Console.ReadLine(), out horizontalPosition); //reikia tikrinimo, kad butu tarp 1 ir 15
+                int.TryParse(Console.ReadLine(), out horizontalPosition);
                 Console.WriteLine("Enter Vertical position");
-                int.TryParse(Console.ReadLine(), out verticalPosition); //reikia tikrinimo, kad butu tarp 1 ir 15
+                int.TryParse(Console.ReadLine(), out verticalPosition);
                 direction = Direction();
                 var chArrayOfWordToPlay = wordToPlay.ToArray();
-                correctPositioning = CheckTheWord(chArrayOfWordToPlay, horizontalPosition, verticalPosition, direction, gameBoard, out skipedMoves); //checking if it's possible to corectly place the word on board
+                correctPositioning = CheckTheWord(chArrayOfWordToPlay, horizontalPosition, verticalPosition, direction, gameBoard); //checking if it's possible to corectly place the word on board
                 playedTiles = CheckIsItPossibleToCreateTheWord(wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction, gameBoard, playerHand, roundNumber, listOfUniqueTiles); // cheking if there was any and returning it if the word was crossing other words on board
                 if (playedTiles.Count > 0 || (roundNumber == 1 && playerNumber == 0)) //if it's first word on board it's not need to cross other word
                 {
@@ -154,18 +153,15 @@ namespace SkrabbleLt.Services
                 else
                 {
                     possibleToCreate = false;
-                }                
+                }
             }
 
-            turnPoints = PointsOfPlacedWord(playedTiles, gameBoard, listOfUniqueTiles, wordToPlay.ToArray(), points, horizontalPosition, verticalPosition, direction); //points after turn
-
+            turnPoints = PointsOfPlacedWord(playedTiles, gameBoard, listOfUniqueTiles, wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction); //points after turn
             Console.WriteLine($"Player {playerName} received {turnPoints} points");
-
-            points = points + turnPoints;
-
+            points += turnPoints;
             playersHands.FirstOrDefault(p => p.PlayerID == playerId).Points = points;
-
-            Console.WriteLine();            
+            Console.WriteLine();
+            manageScrableDb.InsertStatistic(playerId, gameId, playerHand, wordToPlay, horizontalPosition, verticalPosition, direction); //inserting statistic to DB
 
             playerHand = AddToHand(bag, playedTiles, playerHand);
 
@@ -176,10 +172,11 @@ namespace SkrabbleLt.Services
                     player.Hand = playerHand;
                 }
             }
+
             return PlaceTheWordOnBoard(wordToPlay.ToArray(), horizontalPosition, verticalPosition, direction, gameBoard, playerHand);
         }
 
-        public int PointsOfPlacedWord(List<Tile> playedTiles, List<BoardCell> gameBoard, List<Tile> listOfUniqueTiles, char[] wordToPlay, int points, int horizontalPosition, int verticalPosition, char direction)
+        public int PointsOfPlacedWord(List<Tile> playedTiles, List<BoardCell> gameBoard, List<Tile> listOfUniqueTiles, char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction)
         {
             int turnPoints = 0;
             int multiplyer = 1;
@@ -191,28 +188,28 @@ namespace SkrabbleLt.Services
                     if (cell.SpecialValue == "3xW")
                     {
                         multiplyer *= 3;
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
                         cell.SpecialValue = "   ";
                     }
                     else if (cell.SpecialValue == "2xW")
                     {
                         multiplyer *= 2;
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
                         cell.SpecialValue = "   ";
                     }
                     else if (cell.SpecialValue == "2xL")
                     {
-                        turnPoints = turnPoints + (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 2;
+                        turnPoints += (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 2;
                         cell.SpecialValue = "   ";
                     }
                     else if (cell.SpecialValue == "3xL")
                     {
-                        turnPoints = turnPoints + (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 3;
+                        turnPoints += (listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value) * 3;
                         cell.SpecialValue = "   ";
                     }
                     else 
                     {
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
                     }
                     i += 1;
                 }                
@@ -233,17 +230,17 @@ namespace SkrabbleLt.Services
                     }
                     else if (cell.SpecialValue == "2xL")
                     {
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 2;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 2;
                         cell.SpecialValue = "   ";
                     }
                     else if (cell.SpecialValue == "3xL")
                     {
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 3;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value * 3;
                         cell.SpecialValue = "   ";
                     }
                     else
                     {
-                        turnPoints = turnPoints + listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
+                        turnPoints += listOfUniqueTiles.FirstOrDefault(l => l.Letter == wordToPlay[i]).Value;
                     }
                     i += 1;
                 }
@@ -327,23 +324,22 @@ namespace SkrabbleLt.Services
             }
         }
 
-        public List<Tile> GetPlayerHand(int playerId, List<PlayerHand> playerHands) //!!!!reik padidinimo!!!!  
+        public List<Tile> GetPlayerHand(int playerId, List<PlayerHand> playerHands) 
         {
             var hand = playerHands.FirstOrDefault(p => p.PlayerID == playerId).Hand.ToList();
             return hand;
         }
 
-        public bool CheckTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard, out int skipedMoves) 
+        public bool CheckTheWord(char[] wordToPlay, int horizontalPosition, int verticalPosition, char direction, List<BoardCell> gameBoard) //if the word is empty it meens skiping the turn
         {
             if (wordToPlay.Length != 0)
             {
-                //reikia logikos dėl tuščios plytelės (1as variantas patikrinama ar turi tokią ant rankos ir tada leidžia įvesti betkokią raidę 2as tiesiog paliekam tuscia plyteles Kaip yra tikram zaidime)
-                skipedMoves = 0;
+                skipedMoves.Clear();
                 return CheckTheBoardNeighbours(wordToPlay, direction, horizontalPosition, verticalPosition, gameBoard);
             }
             else
             {
-                skipedMoves = 1; //reikia padidinimo 
+                skipedMoves.Add(1); 
                 return true;
             } 
         } //reikia padidinimo
@@ -354,11 +350,6 @@ namespace SkrabbleLt.Services
             List<Tile> possibilityList = new List<Tile>();
             List<Tile> helpingLettersOnBoard = new List<Tile>();
             var tilesOfWordToPlay = TilesOfWordToPlay(wordToPlay, listOfUniqueTiles);
-
-            foreach (var item in tilesOfWordToPlay)
-            {
-                Console.WriteLine($"raide is norimo suzaisti zodzio {item.Letter}"); //!!!!!!!!!!!!!!!!TIKRINIMAS!!!!!!!!!!!!!!!!
-            }
 
             if (direction.ToString().ToUpper() == "R") //right
             {
@@ -489,7 +480,7 @@ namespace SkrabbleLt.Services
                 int warning = 0;
                 int i = 0;
                 int tempH = wordToPlay.Length + h;
-                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v - 1)) //tikrinam ar nesusiliecia daugiau nei 1 raide su zodziu virsuje
+                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v - 1)) //checking if there no more than 1 touching cell with letter in upper row
                 {
                     if (upperCell.LetterOnBoard != '.' && i < tempH)
                     {
@@ -507,7 +498,7 @@ namespace SkrabbleLt.Services
                     i += 1;
                 }
                 int j = 0;
-                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v + 1)) //tikrinam ar nesusiliecia daugiau nei 1 raide su zodziu apacioje
+                foreach (var upperCell in gameBoard.Where(vp => vp.HPosition == v + 1)) //checking if there no more than 1 touching cell with letter in bottom row
                 {
                     if (upperCell.LetterOnBoard != '.' && j < tempH)
                     {
@@ -536,7 +527,7 @@ namespace SkrabbleLt.Services
                 int warning = 0;
                 int i = 0;
                 int tempV = wordToPlay.Length + v;
-                foreach (var upperCell in gameBoard.Where(hp => hp.VPosition == h - 1)) //tikrinam ar nesusiliecia daugiau nei 1 raide su zodziu kaireje
+                foreach (var upperCell in gameBoard.Where(hp => hp.VPosition == h - 1)) //checking if there no more than 1 touching cell with letter in left column
                 {
                     if (upperCell.LetterOnBoard != '.' && i < tempV)
                     {
@@ -554,7 +545,7 @@ namespace SkrabbleLt.Services
                     i += 1;
                 }
                 int j = 0;
-                foreach (var upperCell in gameBoard.Where(hp => hp.VPosition == h + 1)) //tikrinam ar nesusiliecia daugiau nei 1 raide su zodziu kaireje
+                foreach (var upperCell in gameBoard.Where(hp => hp.VPosition == h + 1)) //checking if there no more than 1 touching cell with letter in right column
                 {
                     if (upperCell.LetterOnBoard != '.' && j < tempV)
                     {
@@ -585,11 +576,16 @@ namespace SkrabbleLt.Services
             return lettersOnHand;
         }
 
-        public void PrintBoard(List<BoardCell> gameBoard)  
+        public void PrintBoard(List<BoardCell> gameBoard, List<Tile> listOfUniqueTiles)  
         {
+            List<char> unicTileLetters = new List<char>();
+            foreach (var Tile in listOfUniqueTiles)
+            {
+                unicTileLetters.Add(Tile.Letter);
+            }
+
             Console.WriteLine("     -------------------------------------------------------------");
             Console.WriteLine("     | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10| 11| 12| 13| 14|");
-
             Console.WriteLine("------------------------------------------------------------------");
             for (int i = 0; i < 15; i++)
             {
@@ -601,12 +597,22 @@ namespace SkrabbleLt.Services
                 {
                     Console.Write($"| {i} ");
                 }
+
+                
+
                 foreach (var cell in gameBoard.Where(h => h.HPosition == i))
                 {
                     Console.Write("| ");
-                    //if celėje yra raidė turi spausdinti raidę, esle "specialValue"
-                    Console.Write(cell.LetterOnBoard);
-                    Console.Write(" ");
+                    if (unicTileLetters.Contains(cell.LetterOnBoard))
+                    {
+                        Console.Write(cell.LetterOnBoard);
+                        Console.Write(" ");
+                    }
+                    else
+                    {
+                        Console.Write(cell.SpecialValue);
+                        Console.Write(" ");
+                    }
                 }
                 Console.WriteLine("|");
                 Console.WriteLine("------------------------------------------------------------------");
@@ -632,7 +638,6 @@ namespace SkrabbleLt.Services
                 }
                 
             }
-            /*
             if ((manageScrableDb.GetAllPlayers().Exists(p => p.PlayerName == playerName))) 
             {
                 Console.WriteLine($"Welcom {playerName} to the Scrabble again!");                
@@ -642,7 +647,6 @@ namespace SkrabbleLt.Services
                 manageScrableDb.InsertPlayer(playerName);
                 Console.WriteLine($"Welcom {playerName} to the Scrabble!");
             }
-            */
             return (manageScrableDb.GetAllPlayers().FirstOrDefault(p => p.PlayerName == playerName));
         }        
     }

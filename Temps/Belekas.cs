@@ -7,6 +7,13 @@ namespace SkrabbleLt.Temps
     class Belekas
     {
         /*
+                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!!!! sutraukimas i metodus !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!!!! perskirstymas i lentynas !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!!!! pagalvoti gal dar yra kokie galimi kiti budai uzbaigti zaidima !!!!
+            //!!!!!!!!!! "_" plytele galima ir mandriau !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       
         public static List<Tile> DataSeed => new List<Tile>
         {
             new Tile(1, 'A', 1, 12),

@@ -11,7 +11,7 @@ namespace Skrabble
             using (var context = new ScrabbleContext())
             {
                 IManageScrabbleDb manageScrableDb = new ManageScrabbleDb(context);
-                //IScrabbleGame scrabbleGame = new ScrabbleGame(manageScrableDb);
+                IScrabbleGame scrabbleGame = new ScrabbleGame(manageScrableDb);
                 var game = new ScrabbleGame();
                 game.Scrabble(manageScrableDb);
             }

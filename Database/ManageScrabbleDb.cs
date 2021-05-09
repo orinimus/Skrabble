@@ -26,9 +26,26 @@ namespace SkrabbleLt.Database
             return _context.Players.ToList();
         }
 
+        public int GetLastGameId()
+        {
+            return _context.Games.Last().GameId;
+        }
+
         public void InsertPlayer(string playerName)
         {
             _context.Players.Add(new Player { PlayerName = playerName });
+            _context.SaveChanges();
+        }
+
+        public void InsertStatistic(int playerId, int gameId, List<Tile> tilesOnHand, string playedWord, int horizontalPosition, int verticalPosition, char direction)
+        {
+            _context.Statistics.Add(new Statistic { PlayerId = playerId, GameId = gameId, Tiles = tilesOnHand, PlayedWord = playedWord, HPosition = horizontalPosition, VPosition = verticalPosition, Direction = direction});
+            _context.SaveChanges();
+        }
+
+        public void InsertGame(List<Player> gamePlayers, DateTime gameDate)
+        {
+            _context.Games.Add(new Game { GamePlayers = gamePlayers, GameDate = gameDate});
             _context.SaveChanges();
         }
 

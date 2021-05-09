@@ -12,7 +12,8 @@ namespace SkrabbleLt.Models
         public int GameId { get; set; }
         public List<Tile> Tiles { get; set; } //the hand before move
         public string PlayedWord { get; set; }
-        public BoardCell Position { get; set; } //position of the words first letter
+        public int HPosition { get; set; }
+        public int VPosition { get; set; }
         public char Direction { get; set; } //'H' horizontal 'V' vertical
     }
 }
