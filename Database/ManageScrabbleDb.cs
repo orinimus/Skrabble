@@ -28,7 +28,7 @@ namespace SkrabbleLt.Database
 
         public int GetLastGameId()
         {
-            return _context.Games.Last().GameId;
+            return (_context.Games.Count() + 1);
         }
 
         public void InsertPlayer(string playerName)

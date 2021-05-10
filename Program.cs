@@ -14,6 +14,9 @@ namespace Skrabble
                 IScrabbleGame scrabbleGame = new ScrabbleGame(manageScrableDb);
                 var game = new ScrabbleGame();
                 game.Scrabble(manageScrableDb);
+
+                Console.WriteLine("-----Press any key to continue-----");
+                Console.ReadKey();
             }
         }
     }
